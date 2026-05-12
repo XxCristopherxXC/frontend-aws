@@ -3,7 +3,7 @@ name: Deploy Frontend
 on:
   push:
     branches:
-      - main  # Cambia a 'deploy' si esa es tu rama de trabajo
+      - main  # Asegúrate de que tu rama se llame main o cámbiala a deploy
 
 jobs:
   deploy:
@@ -29,11 +29,19 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ec2-user # Ajustado para tu instancia AWS
+          username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Descargar la nueva imagen
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
+            
+            # Detener y eliminar el contenedor anterior si existe
             docker stop frontend || true
             docker rm frontend || true
-            # Corremos el contenedor en el puerto 80
-            docker run -d -p 80:80 --name frontend ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
+            
+            # Ejecutar el nuevo contenedor en el puerto 80
+            docker run -d \
+              --name frontend \
+              -p 80:80 \
+              --restart always \
+              ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
