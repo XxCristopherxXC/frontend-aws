@@ -13,11 +13,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # --- ETAPA 12: Configuración de variable de entorno ---
       - name: Create .env file
         run: |
           echo "VITE_API_URL=http://98.84.56.101:3000" > .env
-          echo "Archivo .env creado con la IP del Backend"
 
       - name: Login Docker Hub
         uses: docker/login-action@v3
@@ -25,32 +23,22 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and Push image
+      - name: Build and Push
         run: |
-          # Docker usará el archivo .env creado arriba durante el build
           docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
 
-      - name: Deploy to EC2
+      - name: Deploy EC2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # 1. Login en el servidor
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-            # 2. Descargar la imagen actualizada
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
-
-            # 3. Limpieza de puerto 80 y contenedores antiguos
-            docker rm -f frontend || true
+            
+            # Etapa 13: Ejecutar con Compose
+            docker compose down || true
             sudo fuser -k 80/tcp || true
-
-            # 4. Lanzar el contenedor con la nueva configuración
-            docker run -d \
-              --name frontend \
-              -p 80:80 \
-              --restart always \
-              ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
+            docker compose up -d
