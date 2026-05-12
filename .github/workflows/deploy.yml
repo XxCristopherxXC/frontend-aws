@@ -3,7 +3,7 @@ name: Deploy Frontend
 on:
   push:
     branches:
-      - main  # Asegúrate de que tu rama se llame main o cámbiala a deploy
+      - main
 
 jobs:
   deploy:
@@ -20,6 +20,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build image
+        # El punto al final es obligatorio, indica el contexto actual
         run: docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest .
 
       - name: Push image
@@ -32,14 +33,9 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Descargar la nueva imagen
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
-            
-            # Detener y eliminar el contenedor anterior si existe
             docker stop frontend || true
             docker rm frontend || true
-            
-            # Ejecutar el nuevo contenedor en el puerto 80
             docker run -d \
               --name frontend \
               -p 80:80 \
