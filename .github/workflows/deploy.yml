@@ -1,4 +1,4 @@
-name: Deploy Frontend
+name: Deploy Backend
 
 on:
   push:
@@ -13,10 +13,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create .env file
-        run: |
-          echo "VITE_API_URL=http://98.84.56.101:3000" > .env
-
       - name: Login Docker Hub
         uses: docker/login-action@v3
         with:
@@ -25,8 +21,8 @@ jobs:
 
       - name: Build and Push
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest .
-          docker push ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/backend-app:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/backend-app:latest
 
       - name: Deploy EC2
         uses: appleboy/ssh-action@master
@@ -36,9 +32,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-            docker pull ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/backend-app:latest
             
             # Etapa 13: Ejecutar con Compose
             docker compose down || true
-            sudo fuser -k 80/tcp || true
+            sudo fuser -k 3000/tcp || true
+            sudo fuser -k 3306/tcp || true
             docker compose up -d
