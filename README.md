@@ -1,4 +1,4 @@
-# 🚀 Backend API - Infraestructura y Despliegue
+ Backend API - Infraestructura y Despliegue
 
 Este repositorio contiene la lógica de negocio y la persistencia de datos de la aplicación, diseñada bajo una arquitectura de contenedores y desplegada de forma automatizada en AWS.
 
