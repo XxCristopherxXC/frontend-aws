@@ -31,20 +31,25 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # 1. Autenticar Docker dentro de la EC2
+            # 1. Autenticar Docker en la instancia EC2
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-            # 2. Bajar la imagen más reciente
+            # 2. Bajar la nueva imagen
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
 
-            # 3. Limpiar el puerto 80 y contenedores antiguos
-            docker stop frontend || true
-            docker rm frontend || true
+            # 3. Liberar el puerto 80 (Matar procesos y contenedores viejos)
+            # Detener contenedores que ya usen el puerto 80
+            docker ps -q --filter "publish=80" | xargs -r docker stop || true
+            docker ps -a -q --filter "publish=80" | xargs -r docker rm -f || true
             
-            # Matar cualquier proceso que esté usando el puerto 80 (como Apache o Nginx del sistema)
+            # Detener servicios del sistema que podrían estar usando el puerto 80
+            sudo systemctl stop httpd || true
+            sudo systemctl stop nginx || true
+            
+            # Forzar cierre de cualquier proceso restante en el puerto 80
             sudo fuser -k 80/tcp || true
 
-            # 4. Lanzar el nuevo contenedor
+            # 4. Ejecutar el nuevo contenedor
             docker run -d \
               --name frontend \
               -p 80:80 \
