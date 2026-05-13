@@ -14,7 +14,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Create .env file
-        # Usamos la IP del secret para que sea dinámico
         run: |
           echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:3000" > .env
 
@@ -37,12 +36,11 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             # 1. SOLUCIÓN AL ERROR DE PERMISOS (Socket de Docker)
-            # Esto permite que ec2-user maneje docker sin el error de 'permission denied'
+            # Esto le da permisos al usuario ec2-user para usar Docker
             sudo chmod 666 /var/run/docker.sock
 
             # 2. INSTALACIÓN MANUAL DE DOCKER COMPOSE (Si no existe)
             if ! command -v docker-compose &> /dev/null; then
-              echo "Instalando Docker Compose..."
               sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
               sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose || true
@@ -65,15 +63,10 @@ jobs:
                   - "80:80"
             EOF
 
-            # Reemplazar el nombre de la imagen real en el archivo
+            # Reemplazar el nombre de la imagen real
             sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}/frontend-app:latest|g" docker-compose-frontend.yml
 
             # 6. Limpieza y Despliegue
-            # Detenemos y borramos cualquier contenedor previo
             docker rm -f frontend || true
-            
-            # Liberamos el puerto 80 por si hay procesos colgados
             sudo fuser -k 80/tcp || true
-
-            # Levantamos el contenedor
             docker-compose -f docker-compose-frontend.yml up -d
