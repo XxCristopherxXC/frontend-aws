@@ -14,9 +14,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Create .env file
-        # Ajusta la IP a la de tu EC2 actual
+        # Usamos la IP del secret para que sea dinámico
         run: |
-          echo "VITE_API_URL=http://98.84.56.101:3000" > .env
+          echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:3000" > .env
 
       - name: Login Docker Hub
         uses: docker/login-action@v3
@@ -36,7 +36,11 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # 1. INSTALACIÓN MANUAL DE DOCKER COMPOSE (Si no existe)
+            # 1. SOLUCIÓN AL ERROR DE PERMISOS (Socket de Docker)
+            # Esto permite que ec2-user maneje docker sin el error de 'permission denied'
+            sudo chmod 666 /var/run/docker.sock
+
+            # 2. INSTALACIÓN MANUAL DE DOCKER COMPOSE (Si no existe)
             if ! command -v docker-compose &> /dev/null; then
               echo "Instalando Docker Compose..."
               sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -44,13 +48,13 @@ jobs:
               sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose || true
             fi
 
-            # 2. Login
+            # 3. Login en Docker Hub
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-            # 3. Pull de la imagen
+            # 4. Pull de la imagen más reciente
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
 
-            # 4. Crear archivo docker-compose.yml para el Frontend
+            # 5. Crear archivo docker-compose.yml para el Frontend
             cat <<'EOF' > docker-compose-frontend.yml
             services:
               frontend:
@@ -61,12 +65,15 @@ jobs:
                   - "80:80"
             EOF
 
-            # Reemplazar el nombre de la imagen real
+            # Reemplazar el nombre de la imagen real en el archivo
             sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}/frontend-app:latest|g" docker-compose-frontend.yml
 
-            # 5. Limpiar cualquier rastro del puerto 80
+            # 6. Limpieza y Despliegue
+            # Detenemos y borramos cualquier contenedor previo
             docker rm -f frontend || true
+            
+            # Liberamos el puerto 80 por si hay procesos colgados
             sudo fuser -k 80/tcp || true
 
-            # 6. Levantar usando el archivo específico
+            # Levantamos el contenedor
             docker-compose -f docker-compose-frontend.yml up -d
