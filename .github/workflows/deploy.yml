@@ -34,12 +34,13 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
+          # 🚨 ESTA LÍNEA ES VITAL PARA AMAZON LINUX 2023 🚨
+          algorithms: ssh-rsa
           script: |
-            # 1. SOLUCIÓN AL ERROR DE PERMISOS (Socket de Docker)
-            # Esto le da permisos al usuario ec2-user para usar Docker
+            # 1. SOLUCIÓN AL ERROR DE PERMISOS
             sudo chmod 666 /var/run/docker.sock
 
-            # 2. INSTALACIÓN MANUAL DE DOCKER COMPOSE (Si no existe)
+            # 2. INSTALACIÓN DE DOCKER COMPOSE
             if ! command -v docker-compose &> /dev/null; then
               sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
@@ -49,24 +50,23 @@ jobs:
             # 3. Login en Docker Hub
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-            # 4. Pull de la imagen más reciente
+            # 4. Pull de la imagen
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
 
-            # 5. Crear archivo  docker-compose.yml para el Frontend
-            cat <<'EOF' > docker-compose-frontend.yml
+            # 5. Crear archivo docker-compose.yml
+            cat <<EOF > docker-compose-frontend.yml
             services:
               frontend:
-                image: DOCKER_IMAGE_PLACEHOLDER
+                image: ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
                 container_name: frontend
                 restart: always
                 ports:
                   - "80:80"
             EOF
 
-            # Reemplazar el nombre de la imagen real
-            sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}/frontend-app:latest|g" docker-compose-frontend.yml
-
             # 6. Limpieza y Despliegue
-            docker rm -f frontend || true
-            sudo fuser -k 80/tcp || true
+            docker-compose -f docker-compose-frontend.yml down || true
             docker-compose -f docker-compose-frontend.yml up -d
+            
+            # Limpiar imágenes antiguas para no llenar el disco
+            docker image prune -f
