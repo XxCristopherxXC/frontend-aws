@@ -34,26 +34,25 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
-          # 🚨 ESTA LÍNEA ES VITAL PARA AMAZON LINUX 2023 🚨
-          algorithms: ssh-rsa
+          debug: true
           script: |
-            # 1. SOLUCIÓN AL ERROR DE PERMISOS
+            # 1. Asegurar permisos del socket de Docker
             sudo chmod 666 /var/run/docker.sock
 
-            # 2. INSTALACIÓN DE DOCKER COMPOSE
+            # 2. Instalar Docker Compose si no existe (Amazon Linux 2023)
             if ! command -v docker-compose &> /dev/null; then
               sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
               sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose || true
             fi
 
-            # 3. Login en Docker Hub
+            # 3. Autenticación en Docker Hub
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-            # 4. Pull de la imagen
+            # 4. Descargar la nueva imagen
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontend-app:latest
 
-            # 5. Crear archivo docker-compose.yml
+            # 5. Generar el archivo docker-compose-frontend.yml dinámicamente
             cat <<EOF > docker-compose-frontend.yml
             services:
               frontend:
@@ -64,9 +63,9 @@ jobs:
                   - "80:80"
             EOF
 
-            # 6. Limpieza y Despliegue
+            # 6. Despliegue: bajar contenedores anteriores y subir el nuevo
             docker-compose -f docker-compose-frontend.yml down || true
             docker-compose -f docker-compose-frontend.yml up -d
-            
-            # Limpiar imágenes antiguas para no llenar el disco
+
+            # 7. Limpiar imágenes antiguas (para ahorrar espacio en disco)
             docker image prune -f
